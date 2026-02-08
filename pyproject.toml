@@ -31,6 +31,7 @@ dependencies = [
   "shapely==1.8.5",
   "docker>=7.1.0",
   "carla>=0.9.16",
+  "nuscenes-devkit>=1.1.11",
 ]
 
 [[tool.uv.index]]
