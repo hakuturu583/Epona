@@ -71,13 +71,17 @@ class DCAEConfig:
     in_channels: int = 3
     latent_channels: int = 32
     encoder: EncoderConfig = field(
-        default_factory=lambda: EncoderConfig(in_channels="${..in_channels}", latent_channels="${..latent_channels}")
+        default_factory=lambda: EncoderConfig(
+            in_channels="${..in_channels}", latent_channels="${..latent_channels}"
+        )
     )
     decoder: DecoderConfig = field(
-        default_factory=lambda: DecoderConfig(in_channels="${..in_channels}", latent_channels="${..latent_channels}")
+        default_factory=lambda: DecoderConfig(
+            in_channels="${..in_channels}", latent_channels="${..latent_channels}"
+        )
     )
     use_quant_conv: bool = False
-    
+
     add_encoder_temporal: bool = False
     add_decoder_temporal: bool = False
     condition_frames: int = 1
@@ -88,7 +92,11 @@ class DCAEConfig:
 
 
 def build_block(
-    block_type: str, in_channels: int, out_channels: int, norm: Optional[str], act: Optional[str]
+    block_type: str,
+    in_channels: int,
+    out_channels: int,
+    norm: Optional[str],
+    act: Optional[str],
 ) -> nn.Module:
     if block_type == "ResBlock":
         assert in_channels == out_channels
@@ -104,19 +112,30 @@ def build_block(
         block = ResidualBlock(main_block, IdentityLayer())
     elif block_type == "EViT_GLU":
         assert in_channels == out_channels
-        block = EfficientViTBlock(in_channels, norm=norm, act_func=act, local_module="GLUMBConv", scales=())
+        block = EfficientViTBlock(
+            in_channels, norm=norm, act_func=act, local_module="GLUMBConv", scales=()
+        )
     else:
         raise ValueError(f"block_type {block_type} is not supported")
     return block
 
 
 def build_stage_main(
-    width: int, depth: int, block_type: str | list[str], norm: str, act: str, input_width: int
+    width: int,
+    depth: int,
+    block_type: str | list[str],
+    norm: str,
+    act: str,
+    input_width: int,
 ) -> list[nn.Module]:
-    assert isinstance(block_type, str) or (isinstance(block_type, list) and depth == len(block_type))
+    assert isinstance(block_type, str) or (
+        isinstance(block_type, list) and depth == len(block_type)
+    )
     stage = []
     for d in range(depth):
-        current_block_type = block_type[d] if isinstance(block_type, list) else block_type
+        current_block_type = (
+            block_type[d] if isinstance(block_type, list) else block_type
+        )
         block = build_block(
             block_type=current_block_type,
             in_channels=width if d > 0 else input_width,
@@ -128,7 +147,9 @@ def build_stage_main(
     return stage
 
 
-def build_downsample_block(block_type: str, in_channels: int, out_channels: int, shortcut: Optional[str]) -> nn.Module:
+def build_downsample_block(
+    block_type: str, in_channels: int, out_channels: int, shortcut: Optional[str]
+) -> nn.Module:
     if block_type == "Conv":
         block = ConvLayer(
             in_channels=in_channels,
@@ -157,7 +178,9 @@ def build_downsample_block(block_type: str, in_channels: int, out_channels: int,
     return block
 
 
-def build_upsample_block(block_type: str, in_channels: int, out_channels: int, shortcut: Optional[str]) -> nn.Module:
+def build_upsample_block(
+    block_type: str, in_channels: int, out_channels: int, shortcut: Optional[str]
+) -> nn.Module:
     if block_type == "ConvPixelShuffle":
         block = ConvPixelShuffleUpSampleLayer(
             in_channels=in_channels, out_channels=out_channels, kernel_size=3, factor=2
@@ -176,7 +199,9 @@ def build_upsample_block(block_type: str, in_channels: int, out_channels: int, s
     return block
 
 
-def build_encoder_project_in_block(in_channels: int, out_channels: int, factor: int, downsample_block_type: str):
+def build_encoder_project_in_block(
+    in_channels: int, out_channels: int, factor: int, downsample_block_type: str
+):
     if factor == 1:
         block = ConvLayer(
             in_channels=in_channels,
@@ -189,15 +214,24 @@ def build_encoder_project_in_block(in_channels: int, out_channels: int, factor: 
         )
     elif factor == 2:
         block = build_downsample_block(
-            block_type=downsample_block_type, in_channels=in_channels, out_channels=out_channels, shortcut=None
+            block_type=downsample_block_type,
+            in_channels=in_channels,
+            out_channels=out_channels,
+            shortcut=None,
         )
     else:
-        raise ValueError(f"downsample factor {factor} is not supported for encoder project in")
+        raise ValueError(
+            f"downsample factor {factor} is not supported for encoder project in"
+        )
     return block
 
 
 def build_encoder_project_out_block(
-    in_channels: int, out_channels: int, norm: Optional[str], act: Optional[str], shortcut: Optional[str]
+    in_channels: int,
+    out_channels: int,
+    norm: Optional[str],
+    act: Optional[str],
+    shortcut: Optional[str],
 ):
     block = OpSequential(
         [
@@ -222,11 +256,15 @@ def build_encoder_project_out_block(
         )
         block = ResidualBlock(block, shortcut_block)
     else:
-        raise ValueError(f"shortcut {shortcut} is not supported for encoder project out")
+        raise ValueError(
+            f"shortcut {shortcut} is not supported for encoder project out"
+        )
     return block
 
 
-def build_decoder_project_in_block(in_channels: int, out_channels: int, shortcut: Optional[str]):
+def build_decoder_project_in_block(
+    in_channels: int, out_channels: int, shortcut: Optional[str]
+):
     block = ConvLayer(
         in_channels=in_channels,
         out_channels=out_channels,
@@ -249,7 +287,12 @@ def build_decoder_project_in_block(in_channels: int, out_channels: int, shortcut
 
 
 def build_decoder_project_out_block(
-    in_channels: int, out_channels: int, factor: int, upsample_block_type: str, norm: Optional[str], act: Optional[str]
+    in_channels: int,
+    out_channels: int,
+    factor: int,
+    upsample_block_type: str,
+    norm: Optional[str],
+    act: Optional[str],
 ):
     layers: list[nn.Module] = [
         build_norm(norm, in_channels),
@@ -270,12 +313,18 @@ def build_decoder_project_out_block(
     elif factor == 2:
         layers.append(
             build_upsample_block(
-                block_type=upsample_block_type, in_channels=in_channels, out_channels=out_channels, shortcut=None
+                block_type=upsample_block_type,
+                in_channels=in_channels,
+                out_channels=out_channels,
+                shortcut=None,
             )
         )
     else:
-        raise ValueError(f"upsample factor {factor} is not supported for decoder project out")
+        raise ValueError(
+            f"upsample factor {factor} is not supported for decoder project out"
+        )
     return OpSequential(layers)
+
 
 def precompute_freqs_cis(dim: int, end: int, theta: float = 10000.0):
     freqs = 1.0 / (theta ** (torch.arange(0, dim, 2)[: (dim // 2)].float() / dim))
@@ -283,6 +332,7 @@ def precompute_freqs_cis(dim: int, end: int, theta: float = 10000.0):
     freqs = torch.outer(t, freqs)
     freqs_cis = torch.polar(torch.ones_like(freqs), freqs)  # complex64
     return freqs_cis
+
 
 def reshape_for_broadcast(freqs_cis: torch.Tensor, x: torch.Tensor):
     ndim = x.ndim
@@ -316,23 +366,36 @@ def repeat_kv(x: torch.Tensor, n_rep: int) -> torch.Tensor:
         .reshape(bs, slen, n_kv_heads * n_rep, head_dim)
     )
 
+
 def nonlinearity(x):
     # swish
-    return x*torch.sigmoid(x)
+    return x * torch.sigmoid(x)
 
-def Normalize(in_channels, norm_type='group'):
-    assert norm_type in ['group', 'batch']
-    if norm_type == 'group':
-        return nn.GroupNorm(num_groups=32, num_channels=in_channels, eps=1e-6, affine=True)
-    elif norm_type == 'batch':
+
+def Normalize(in_channels, norm_type="group"):
+    assert norm_type in ["group", "batch"]
+    if norm_type == "group":
+        return nn.GroupNorm(
+            num_groups=32, num_channels=in_channels, eps=1e-6, affine=True
+        )
+    elif norm_type == "batch":
         return nn.SyncBatchNorm(in_channels)
-    
+
+
 def zero_initialize(module):
     for param in module.parameters():
         nn.init.zeros_(param)
 
+
 class ResnetBlock(nn.Module):
-    def __init__(self, in_channels, out_channels=None, conv_shortcut=False, dropout=0.0, norm_type='group'):
+    def __init__(
+        self,
+        in_channels,
+        out_channels=None,
+        conv_shortcut=False,
+        dropout=0.0,
+        norm_type="group",
+    ):
         super().__init__()
         self.in_channels = in_channels
         out_channels = in_channels if out_channels is None else out_channels
@@ -340,16 +403,24 @@ class ResnetBlock(nn.Module):
         self.use_conv_shortcut = conv_shortcut
 
         self.norm1 = Normalize(in_channels, norm_type)
-        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1)
+        self.conv1 = nn.Conv2d(
+            in_channels, out_channels, kernel_size=3, stride=1, padding=1
+        )
         self.norm2 = Normalize(out_channels, norm_type)
         self.dropout = nn.Dropout(dropout)
-        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=1, padding=1)
+        self.conv2 = nn.Conv2d(
+            out_channels, out_channels, kernel_size=3, stride=1, padding=1
+        )
 
         if self.in_channels != self.out_channels:
             if self.use_conv_shortcut:
-                self.conv_shortcut = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1)
+                self.conv_shortcut = nn.Conv2d(
+                    in_channels, out_channels, kernel_size=3, stride=1, padding=1
+                )
             else:
-                self.nin_shortcut = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
+                self.nin_shortcut = nn.Conv2d(
+                    in_channels, out_channels, kernel_size=1, stride=1, padding=0
+                )
 
     def forward(self, x):
         h = x
@@ -366,18 +437,19 @@ class ResnetBlock(nn.Module):
                 x = self.conv_shortcut(x)
             else:
                 x = self.nin_shortcut(x)
-        return x+h
+        return x + h
 
 
 class AttnBlock(nn.Module):
-    def __init__(self, in_channels, norm_type='group'):
+    def __init__(self, in_channels, norm_type="group"):
         super().__init__()
         self.norm = Normalize(in_channels, norm_type)
         self.q = nn.Conv2d(in_channels, in_channels, kernel_size=1, stride=1, padding=0)
         self.k = nn.Conv2d(in_channels, in_channels, kernel_size=1, stride=1, padding=0)
         self.v = nn.Conv2d(in_channels, in_channels, kernel_size=1, stride=1, padding=0)
-        self.proj_out = nn.Conv2d(in_channels, in_channels, kernel_size=1, stride=1, padding=0)
-
+        self.proj_out = nn.Conv2d(
+            in_channels, in_channels, kernel_size=1, stride=1, padding=0
+        )
 
     def forward(self, x):
         h_ = x
@@ -387,27 +459,29 @@ class AttnBlock(nn.Module):
         v = self.v(h_)
 
         # compute attention
-        b,c,h,w = q.shape
-        q = q.reshape(b,c,h*w)
-        q = q.permute(0,2,1)   # b,hw,c
-        k = k.reshape(b,c,h*w) # b,c,hw
-        w_ = torch.bmm(q,k)     # b,hw,hw    w[b,i,j]=sum_c q[b,i,c]k[b,c,j]
-        w_ = w_ * (int(c)**(-0.5))
+        b, c, h, w = q.shape
+        q = q.reshape(b, c, h * w)
+        q = q.permute(0, 2, 1)  # b,hw,c
+        k = k.reshape(b, c, h * w)  # b,c,hw
+        w_ = torch.bmm(q, k)  # b,hw,hw    w[b,i,j]=sum_c q[b,i,c]k[b,c,j]
+        w_ = w_ * (int(c) ** (-0.5))
         w_ = F.softmax(w_, dim=2)
 
         # attend to values
-        v = v.reshape(b,c,h*w)
-        w_ = w_.permute(0,2,1)   # b,hw,hw (first hw of k, second of q)
-        h_ = torch.bmm(v,w_)     # b, c,hw (hw of q) h_[b,c,j] = sum_i v[b,c,i] w_[b,i,j]
-        h_ = h_.reshape(b,c,h,w)
+        v = v.reshape(b, c, h * w)
+        w_ = w_.permute(0, 2, 1)  # b,hw,hw (first hw of k, second of q)
+        h_ = torch.bmm(v, w_)  # b, c,hw (hw of q) h_[b,c,j] = sum_i v[b,c,i] w_[b,i,j]
+        h_ = h_.reshape(b, c, h, w)
 
         h_ = self.proj_out(h_)
 
-        return x+h_
+        return x + h_
 
 
 class TransformerBlock(nn.Module):
-    def __init__(self, n_heads, dim, multiple_of=256, ffn_dim_multiplier=None, norm_eps=1e-5):
+    def __init__(
+        self, n_heads, dim, multiple_of=256, ffn_dim_multiplier=None, norm_eps=1e-5
+    ):
         super().__init__()
         self.n_heads = n_heads
         self.dim = dim
@@ -426,7 +500,7 @@ class TransformerBlock(nn.Module):
         self,
         x: torch.Tensor,
         freqs_cis: torch.Tensor,
-        mask: Optional[torch.Tensor]=None,
+        mask: Optional[torch.Tensor] = None,
     ):
         # print('x.shape, freqs_cis.shape, mask.shape', x.shape, freqs_cis.shape, mask.shape)
         h = x + self.attention(self.attention_norm(x), freqs_cis, mask)
@@ -517,18 +591,13 @@ class FeedForward(nn.Module):
             hidden_dim = int(ffn_dim_multiplier * hidden_dim)
         hidden_dim = multiple_of * ((hidden_dim + multiple_of - 1) // multiple_of)
 
-        self.w1 = nn.Linear(
-            dim, hidden_dim, bias=False
-        )
-        self.w2 = nn.Linear(
-            hidden_dim, dim, bias=False
-        )
-        self.w3 = nn.Linear(
-            dim, hidden_dim, bias=False
-        )
+        self.w1 = nn.Linear(dim, hidden_dim, bias=False)
+        self.w2 = nn.Linear(hidden_dim, dim, bias=False)
+        self.w3 = nn.Linear(dim, hidden_dim, bias=False)
 
     def forward(self, x):
         return self.w2(F.silu(self.w1(x)) * self.w3(x))
+
 
 class RMSNorm(nn.Module):
     def __init__(self, dim: int, eps: float = 1e-6):
@@ -542,6 +611,7 @@ class RMSNorm(nn.Module):
     def forward(self, x):
         output = self._norm(x.float()).type_as(x)
         return output * self.weight
+
 
 class Encoder(nn.Module):
     def __init__(self, cfg: EncoderConfig):
@@ -557,23 +627,36 @@ class Encoder(nn.Module):
 
         self.project_in = build_encoder_project_in_block(
             in_channels=cfg.in_channels,
-            out_channels=cfg.width_list[0] if cfg.depth_list[0] > 0 else cfg.width_list[1],
+            out_channels=cfg.width_list[0]
+            if cfg.depth_list[0] > 0
+            else cfg.width_list[1],
             factor=1 if cfg.depth_list[0] > 0 else 2,
             downsample_block_type=cfg.downsample_block_type,
         )
 
         self.stages: list[OpSequential] = []
         for stage_id, (width, depth) in enumerate(zip(cfg.width_list, cfg.depth_list)):
-            block_type = cfg.block_type[stage_id] if isinstance(cfg.block_type, list) else cfg.block_type
+            block_type = (
+                cfg.block_type[stage_id]
+                if isinstance(cfg.block_type, list)
+                else cfg.block_type
+            )
             stage = build_stage_main(
-                width=width, depth=depth, block_type=block_type, norm=cfg.norm, act=cfg.act, input_width=width
+                width=width,
+                depth=depth,
+                block_type=block_type,
+                norm=cfg.norm,
+                act=cfg.act,
+                input_width=width,
             )
 
             if stage_id < num_stages - 1 and depth > 0:
                 downsample_block = build_downsample_block(
                     block_type=cfg.downsample_block_type,
                     in_channels=width,
-                    out_channels=cfg.width_list[stage_id + 1] if cfg.downsample_match_channel else width,
+                    out_channels=cfg.width_list[stage_id + 1]
+                    if cfg.downsample_match_channel
+                    else width,
                     shortcut=cfg.downsample_shortcut,
                 )
                 stage.append(downsample_block)
@@ -582,7 +665,9 @@ class Encoder(nn.Module):
 
         self.project_out = build_encoder_project_out_block(
             in_channels=cfg.width_list[-1],
-            out_channels=2 * cfg.latent_channels if cfg.double_latent else cfg.latent_channels,
+            out_channels=2 * cfg.latent_channels
+            if cfg.double_latent
+            else cfg.latent_channels,
             norm=cfg.out_norm,
             act=cfg.out_act,
             shortcut=cfg.out_shortcut,
@@ -609,8 +694,12 @@ class Decoder(nn.Module):
         assert isinstance(cfg.block_type, str) or (
             isinstance(cfg.block_type, list) and len(cfg.block_type) == num_stages
         )
-        assert isinstance(cfg.norm, str) or (isinstance(cfg.norm, list) and len(cfg.norm) == num_stages)
-        assert isinstance(cfg.act, str) or (isinstance(cfg.act, list) and len(cfg.act) == num_stages)
+        assert isinstance(cfg.norm, str) or (
+            isinstance(cfg.norm, list) and len(cfg.norm) == num_stages
+        )
+        assert isinstance(cfg.act, str) or (
+            isinstance(cfg.act, list) and len(cfg.act) == num_stages
+        )
 
         self.project_in = build_decoder_project_in_block(
             in_channels=cfg.latent_channels,
@@ -619,18 +708,26 @@ class Decoder(nn.Module):
         )
 
         self.stages: list[OpSequential] = []
-        for stage_id, (width, depth) in reversed(list(enumerate(zip(cfg.width_list, cfg.depth_list)))):
+        for stage_id, (width, depth) in reversed(
+            list(enumerate(zip(cfg.width_list, cfg.depth_list)))
+        ):
             stage = []
             if stage_id < num_stages - 1 and depth > 0:
                 upsample_block = build_upsample_block(
                     block_type=cfg.upsample_block_type,
                     in_channels=cfg.width_list[stage_id + 1],
-                    out_channels=width if cfg.upsample_match_channel else cfg.width_list[stage_id + 1],
+                    out_channels=width
+                    if cfg.upsample_match_channel
+                    else cfg.width_list[stage_id + 1],
                     shortcut=cfg.upsample_shortcut,
                 )
                 stage.append(upsample_block)
 
-            block_type = cfg.block_type[stage_id] if isinstance(cfg.block_type, list) else cfg.block_type
+            block_type = (
+                cfg.block_type[stage_id]
+                if isinstance(cfg.block_type, list)
+                else cfg.block_type
+            )
             norm = cfg.norm[stage_id] if isinstance(cfg.norm, list) else cfg.norm
             act = cfg.act[stage_id] if isinstance(cfg.act, list) else cfg.act
             stage.extend(
@@ -641,7 +738,9 @@ class Decoder(nn.Module):
                     norm=norm,
                     act=act,
                     input_width=(
-                        width if cfg.upsample_match_channel else cfg.width_list[min(stage_id + 1, num_stages - 1)]
+                        width
+                        if cfg.upsample_match_channel
+                        else cfg.width_list[min(stage_id + 1, num_stages - 1)]
                     ),
                 )
             )
@@ -649,7 +748,9 @@ class Decoder(nn.Module):
         self.stages = nn.ModuleList(self.stages)
 
         self.project_out = build_decoder_project_out_block(
-            in_channels=cfg.width_list[0] if cfg.depth_list[0] > 0 else cfg.width_list[1],
+            in_channels=cfg.width_list[0]
+            if cfg.depth_list[0] > 0
+            else cfg.width_list[1],
             out_channels=cfg.in_channels,
             factor=1 if cfg.depth_list[0] > 0 else 2,
             upsample_block_type=cfg.upsample_block_type,
@@ -673,44 +774,71 @@ class DCAE(nn.Module):
         self.cfg = cfg
         self.encoder = Encoder(cfg.encoder)
         self.decoder = Decoder(cfg.decoder)
-        
+
         # video structure
         self.add_encoder_temporal = cfg.add_encoder_temporal
         self.add_decoder_temporal = cfg.add_decoder_temporal
         self.temporal_block_num = 5
-        
+
         if self.add_encoder_temporal or self.add_decoder_temporal:
             self.condition_frames = cfg.condition_frames
             self.token_size = cfg.token_size
-            self.causal_time_block = nn.Sequential(*[TransformerBlock(n_heads=8, dim=32) for _ in range(self.temporal_block_num)])
-            self.space_block = nn.Sequential(*[TransformerBlock(n_heads=8, dim=32) for _ in range(self.temporal_block_num)])
+            self.causal_time_block = nn.Sequential(
+                *[
+                    TransformerBlock(n_heads=8, dim=32)
+                    for _ in range(self.temporal_block_num)
+                ]
+            )
+            self.space_block = nn.Sequential(
+                *[
+                    TransformerBlock(n_heads=8, dim=32)
+                    for _ in range(self.temporal_block_num)
+                ]
+            )
             zero_initialize(self.causal_time_block)
             zero_initialize(self.space_block)
 
             # print encoder, decoder, causal_time_block, space_block param size, make it human readable
-            print("DCAE Params Total:", format_number(sum(p.numel() for p in self.parameters())))
-            print("Encoder:", format_number(sum(p.numel() for p in self.encoder.parameters())))
-            print("Decoder:", format_number(sum(p.numel() for p in self.decoder.parameters())))
-            print("Causal Time Block:", format_number(sum(p.numel() for p in self.causal_time_block.parameters())))
-            print("Space Block:", format_number(sum(p.numel() for p in self.space_block.parameters())))
+            print(
+                "DCAE Params Total:",
+                format_number(sum(p.numel() for p in self.parameters())),
+            )
+            print(
+                "Encoder:",
+                format_number(sum(p.numel() for p in self.encoder.parameters())),
+            )
+            print(
+                "Decoder:",
+                format_number(sum(p.numel() for p in self.decoder.parameters())),
+            )
+            print(
+                "Causal Time Block:",
+                format_number(
+                    sum(p.numel() for p in self.causal_time_block.parameters())
+                ),
+            )
+            print(
+                "Space Block:",
+                format_number(sum(p.numel() for p in self.space_block.parameters())),
+            )
 
             self.freqs_cis_time_vid = precompute_freqs_cis(
-                4, #n_embd // n_head,
+                4,  # n_embd // n_head,
                 self.condition_frames,
                 1000,
             ).cuda()
             self.freqs_cis_time_img = precompute_freqs_cis(
-                4, #n_embd // n_head,
+                4,  # n_embd // n_head,
                 1,
                 1000,
             ).cuda()
             self.freqs_cis_space_vid = precompute_freqs_cis(
-                4, #n_embd // n_head,
+                4,  # n_embd // n_head,
                 self.token_size,
                 1000,
             ).cuda()
             self.freqs_cis_space_img = precompute_freqs_cis(
-                4, #n_embd // n_head,
+                4,  # n_embd // n_head,
                 self.token_size,
                 1000,
             ).cuda()
@@ -723,29 +851,39 @@ class DCAE(nn.Module):
             if self.cfg.pretrained_path.endswith(".safetensors"):
                 state_dict = load_sft(self.cfg.pretrained_path, device="cpu")
             else:
-                state_dict = torch.load(self.cfg.pretrained_path, map_location="cpu", weights_only=True)["model"]
+                state_dict = torch.load(
+                    self.cfg.pretrained_path, map_location="cpu", weights_only=True
+                )["model"]
             self.load_state_dict(state_dict)
             print(f"load from {self.cfg.pretrained_path}")
             del state_dict
         else:
             raise NotImplementedError
-        
+
     def spatial_temporal_blocks(self, x):
         _, f, l, _ = x.shape
-        matrix = torch.tril(torch.ones(f, f)) # input frames [1, 0, 0; 1, 1, 0; 1, 1, 1]
-        time_causal_mask = torch.where(matrix==0, float('-inf'), matrix) # 0 to -inf
-        time_causal_mask = torch.where(matrix==1, 0, time_causal_mask) # 1 to 0
+        matrix = torch.tril(
+            torch.ones(f, f)
+        )  # input frames [1, 0, 0; 1, 1, 0; 1, 1, 1]
+        time_causal_mask = torch.where(matrix == 0, float("-inf"), matrix)  # 0 to -inf
+        time_causal_mask = torch.where(matrix == 1, 0, time_causal_mask)  # 1 to 0
         mask_time = time_causal_mask.contiguous().cuda()
 
         # layer past: tuple of length two with B, nh, T, hs
         x_b = x.clone()
-        xx = rearrange(x, 'b f l c -> (b f) l c')
+        xx = rearrange(x, "b f l c -> (b f) l c")
         for i in range(self.temporal_block_num):
-            xx = rearrange(xx, '(b f) l c -> (b l) f c', l=l, f=f)
-            xx = self.causal_time_block[i](xx, self.freqs_cis_time_img if f == 1 else self.freqs_cis_time_vid, mask_time)
-            xx = rearrange(xx, '(b l) f c -> (b f) l c', l=l, f=f)
-            xx = self.space_block[i](xx, self.freqs_cis_space_img if f == 1 else self.freqs_cis_space_vid)
-        x = rearrange(xx, '(b f) l c -> b f l c', f=f)
+            xx = rearrange(xx, "(b f) l c -> (b l) f c", l=l, f=f)
+            xx = self.causal_time_block[i](
+                xx,
+                self.freqs_cis_time_img if f == 1 else self.freqs_cis_time_vid,
+                mask_time,
+            )
+            xx = rearrange(xx, "(b l) f c -> (b f) l c", l=l, f=f)
+            xx = self.space_block[i](
+                xx, self.freqs_cis_space_img if f == 1 else self.freqs_cis_space_vid
+            )
+        x = rearrange(xx, "(b f) l c -> b f l c", f=f)
         return x
 
     @property
@@ -756,7 +894,11 @@ class DCAE(nn.Module):
         x = self.encoder(x)
         if self.add_encoder_temporal:
             _, _, h, w = x.shape
-            x = rearrange(x, "(b f) c h w -> b f (h w) c", f=self.condition_frames if is_video else 1)
+            x = rearrange(
+                x,
+                "(b f) c h w -> b f (h w) c",
+                f=self.condition_frames if is_video else 1,
+            )
             x = self.spatial_temporal_blocks(x)
             x = rearrange(x, "b f (h w) c -> (b f) c h w", h=h, w=w)
         return x
@@ -764,7 +906,11 @@ class DCAE(nn.Module):
     def decode(self, x: torch.Tensor, is_video: bool = False) -> torch.Tensor:
         if self.add_decoder_temporal:
             _, _, h, w = x.shape
-            x = rearrange(x, "(b f) c h w -> b f (h w) c", f=self.condition_frames if is_video else 1)
+            x = rearrange(
+                x,
+                "(b f) c h w -> b f (h w) c",
+                f=self.condition_frames if is_video else 1,
+            )
             x = self.spatial_temporal_blocks(x)
             x = rearrange(x, "b f (h w) c -> (b f) c h w", h=h, w=w)
         x = self.decoder(x)
@@ -774,24 +920,34 @@ class DCAE(nn.Module):
         x = self.encoder(x)
         if self.add_encoder_temporal:
             _, _, h, w = x.shape
-            x = rearrange(x, "(b f) c h w -> b f (h w) c", f=self.condition_frames if is_video else 1)
+            x = rearrange(
+                x,
+                "(b f) c h w -> b f (h w) c",
+                f=self.condition_frames if is_video else 1,
+            )
             x = self.spatial_temporal_blocks(x)
             x = rearrange(x, "b f (h w) c -> (b f) c h w", h=h, w=w)
         if self.add_decoder_temporal:
             _, _, h, w = x.shape
-            x = rearrange(x, "(b f) c h w -> b f (h w) c", f=self.condition_frames if is_video else 1)
+            x = rearrange(
+                x,
+                "(b f) c h w -> b f (h w) c",
+                f=self.condition_frames if is_video else 1,
+            )
             x = self.spatial_temporal_blocks(x)
             x = rearrange(x, "b f (h w) c -> (b f) c h w", h=h, w=w)
         x = self.decoder(x)
         return x
 
 
-def dc_ae_f32c32(name: str, 
-                 pretrained_path: Optional[str] = None, 
-                 add_encoder_temporal: bool = False, 
-                 add_decoder_temporal: bool = False,
-                 condition_frames: int = 7,
-                 token_size: int = 32 * 64) -> DCAEConfig:
+def dc_ae_f32c32(
+    name: str,
+    pretrained_path: Optional[str] = None,
+    add_encoder_temporal: bool = False,
+    add_decoder_temporal: bool = False,
+    condition_frames: int = 7,
+    token_size: int = 32 * 64,
+) -> DCAEConfig:
     if name in ["dc-ae-f32c32-in-1.0", "dc-ae-f32c32-mix-1.0"]:
         cfg_str = (
             "latent_channels=32 "
@@ -804,7 +960,9 @@ def dc_ae_f32c32(name: str,
     else:
         raise NotImplementedError
     cfg = OmegaConf.from_dotlist(cfg_str.split(" "))
-    cfg: DCAEConfig = OmegaConf.to_object(OmegaConf.merge(OmegaConf.structured(DCAEConfig), cfg))
+    cfg: DCAEConfig = OmegaConf.to_object(
+        OmegaConf.merge(OmegaConf.structured(DCAEConfig), cfg)
+    )
     cfg.pretrained_path = pretrained_path
     cfg.add_encoder_temporal = add_encoder_temporal
     cfg.add_decoder_temporal = add_decoder_temporal
@@ -813,12 +971,14 @@ def dc_ae_f32c32(name: str,
     return cfg
 
 
-def dc_ae_f64c128(name: str, 
-                  pretrained_path: Optional[str] = None,
-                  add_encoder_temporal: bool = False, 
-                  add_decoder_temporal: bool = False,
-                  condition_frames: int = 4,
-                  token_size: int = 32) -> DCAEConfig:
+def dc_ae_f64c128(
+    name: str,
+    pretrained_path: Optional[str] = None,
+    add_encoder_temporal: bool = False,
+    add_decoder_temporal: bool = False,
+    condition_frames: int = 4,
+    token_size: int = 32,
+) -> DCAEConfig:
     if name in ["dc-ae-f64c128-in-1.0", "dc-ae-f64c128-mix-1.0"]:
         cfg_str = (
             "latent_channels=128 "
@@ -831,7 +991,9 @@ def dc_ae_f64c128(name: str,
     else:
         raise NotImplementedError
     cfg = OmegaConf.from_dotlist(cfg_str.split(" "))
-    cfg: DCAEConfig = OmegaConf.to_object(OmegaConf.merge(OmegaConf.structured(DCAEConfig), cfg))
+    cfg: DCAEConfig = OmegaConf.to_object(
+        OmegaConf.merge(OmegaConf.structured(DCAEConfig), cfg)
+    )
     cfg.pretrained_path = pretrained_path
     cfg.add_encoder_temporal = add_encoder_temporal
     cfg.add_decoder_temporal = add_decoder_temporal
@@ -853,6 +1015,8 @@ def dc_ae_f128c512(name: str, pretrained_path: Optional[str] = None) -> DCAEConf
     else:
         raise NotImplementedError
     cfg = OmegaConf.from_dotlist(cfg_str.split(" "))
-    cfg: DCAEConfig = OmegaConf.to_object(OmegaConf.merge(OmegaConf.structured(DCAEConfig), cfg))
+    cfg: DCAEConfig = OmegaConf.to_object(
+        OmegaConf.merge(OmegaConf.structured(DCAEConfig), cfg)
+    )
     cfg.pretrained_path = pretrained_path
     return cfg

@@ -9,6 +9,7 @@ from torch import Tensor
 
 from models.flux_dit import FluxDiT
 
+
 def get_noise(
     num_samples: int,
     height: int,
@@ -27,7 +28,8 @@ def get_noise(
         dtype=dtype,
         generator=torch.Generator(device=device).manual_seed(seed),
     )
-    
+
+
 def prepare_ids(bs, h, w, seq_len, traj_len, device="cuda") -> dict[str, Tensor]:
     img_ids = torch.zeros(h, w, 3)
     img_ids[..., 1] = img_ids[..., 1] + torch.arange(h)[:, None]
@@ -72,6 +74,7 @@ def prepare_txt(t5, clip, img: Tensor, prompt: str | list[str]) -> dict[str, Ten
         "txt_ids": txt_ids.to(img.device),
         "vec": vec.to(img.device),
     }
+
 
 def time_shift(mu: float, sigma: float, t: Tensor):
     return math.exp(mu) / (math.exp(mu) + (1 / t - 1) ** sigma)
@@ -120,7 +123,9 @@ def denoise(
     img_cond: Tensor | None = None,
 ):
     # this is ignored for schnell
-    guidance_vec = torch.full((img.shape[0],), guidance, device=img.device, dtype=img.dtype)
+    guidance_vec = torch.full(
+        (img.shape[0],), guidance, device=img.device, dtype=img.dtype
+    )
     for t_curr, t_prev in zip(timesteps[:-1], timesteps[1:]):
         t_vec = torch.full((img.shape[0],), t_curr, dtype=img.dtype, device=img.device)
         pred = model(

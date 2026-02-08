@@ -1,5 +1,7 @@
 import torch
 import math
+
+
 def get_timestep_embedding(
     timesteps: torch.Tensor,
     embedding_dim: int,
@@ -53,7 +55,12 @@ def get_timestep_embedding(
         emb = torch.nn.functional.pad(emb, (0, 1, 0, 0))
     return emb
 
-def get_fourier_embeds_from_coordinates(embed_dim, coordinates, max_period: int = 100,):
+
+def get_fourier_embeds_from_coordinates(
+    embed_dim,
+    coordinates,
+    max_period: int = 100,
+):
     """
     Args:
         embed_dim: int
@@ -63,15 +70,19 @@ def get_fourier_embeds_from_coordinates(embed_dim, coordinates, max_period: int 
     """
     half_embed_dim = embed_dim // 2
     B, N, C = coordinates.shape
-    emb = max_period ** (torch.arange(half_embed_dim, dtype=torch.float32, device=coordinates.device) / half_embed_dim)
+    emb = max_period ** (
+        torch.arange(half_embed_dim, dtype=torch.float32, device=coordinates.device)
+        / half_embed_dim
+    )
     emb = emb[None, None, None, :] * coordinates[:, :, :, None]
     emb = torch.cat([torch.sin(emb), torch.cos(emb)], dim=-1)
     return emb
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     # timesteps = torch.arange(100)
     # emb = get_timestep_embedding(timesteps, 1280, max_period=10)
-    
+
     # emb1 = get_timestep_embedding(timesteps, 1280, max_period=100000)
     # emb2 = get_timestep_embedding(timesteps, 1280, max_period=100)
     # print('done')

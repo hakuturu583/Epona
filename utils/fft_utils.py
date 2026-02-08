@@ -2,6 +2,7 @@ import torch
 import torch.fft as fft
 import math
 
+
 def fourier_filter(x, scale, d_s=0.25):
     dtype = x.dtype
     x = x.type(torch.float32)
@@ -73,7 +74,7 @@ def gaussian_low_pass_filter(shape, d_s=0.25, d_t=0.25, dims=(-1,)):
         return mask
 
     ranges = [torch.linspace(-1, 1, s) for s in size]
-    grid = torch.meshgrid(*ranges, indexing='ij')
+    grid = torch.meshgrid(*ranges, indexing="ij")
     d_square = sum((g ** 2) for g in grid)
 
     # Gaussian filter equation
@@ -98,7 +99,7 @@ def butterworth_low_pass_filter(shape, n=4, d_s=0.25, d_t=0.25, dims=(-1,)):
         return mask
 
     ranges = [torch.linspace(-1, 1, s) for s in size]
-    grid = torch.meshgrid(*ranges, indexing='ij')
+    grid = torch.meshgrid(*ranges, indexing="ij")
     d_square = sum((g ** 2) for g in grid)
 
     # Butterworth filter equation
@@ -122,7 +123,7 @@ def ideal_low_pass_filter(shape, d_s=0.25, d_t=0.25, dims=(-1,)):
         return mask
 
     ranges = [torch.linspace(-1, 1, s) for s in size]
-    grid = torch.meshgrid(*ranges, indexing='ij')
+    grid = torch.meshgrid(*ranges, indexing="ij")
     d_square = sum((g ** 2) for g in grid)
 
     # Ideal filter equation

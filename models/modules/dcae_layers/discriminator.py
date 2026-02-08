@@ -14,7 +14,9 @@ def weights_init(m):
 
 
 class ActNorm(nn.Module):
-    def __init__(self, num_features, logdet=False, affine=True, allow_reverse_init=False):
+    def __init__(
+        self, num_features, logdet=False, affine=True, allow_reverse_init=False
+    ):
         assert affine
         super().__init__()
         self.logdet = logdet
@@ -27,8 +29,20 @@ class ActNorm(nn.Module):
     def initialize(self, input):
         with torch.no_grad():
             flatten = input.permute(1, 0, 2, 3).contiguous().view(input.shape[1], -1)
-            mean = flatten.mean(1).unsqueeze(1).unsqueeze(2).unsqueeze(3).permute(1, 0, 2, 3)
-            std = flatten.std(1).unsqueeze(1).unsqueeze(2).unsqueeze(3).permute(1, 0, 2, 3)
+            mean = (
+                flatten.mean(1)
+                .unsqueeze(1)
+                .unsqueeze(2)
+                .unsqueeze(3)
+                .permute(1, 0, 2, 3)
+            )
+            std = (
+                flatten.std(1)
+                .unsqueeze(1)
+                .unsqueeze(2)
+                .unsqueeze(3)
+                .permute(1, 0, 2, 3)
+            )
 
             self.loc.data.copy_(-mean)
             self.scale.data.copy_(1 / (std + 1e-6))
@@ -87,6 +101,7 @@ class ActNorm(nn.Module):
 
 class NLayerDiscriminator(nn.Module):
     """Defines a PatchGAN discriminator as in Pix2Pix."""
+
     # https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/master/models/networks.py
     def __init__(self, input_nc=3, ndf=64, n_layers=3, use_actnorm=False):
         """Construct a PatchGAN discriminator
@@ -100,29 +115,48 @@ class NLayerDiscriminator(nn.Module):
             norm_layer = nn.BatchNorm2d
         else:
             norm_layer = ActNorm
-        if type(norm_layer) == functools.partial:  # no need to use bias as BatchNorm2d has affine parameters
+        if (
+            type(norm_layer) == functools.partial
+        ):  # no need to use bias as BatchNorm2d has affine parameters
             use_bias = norm_layer.func != nn.BatchNorm2d
         else:
             use_bias = norm_layer != nn.BatchNorm2d
 
         kw = 4
         padw = 1
-        sequence = [nn.Conv2d(input_nc, ndf, kernel_size=kw, stride=2, padding=padw), nn.LeakyReLU(0.2, True)]
+        sequence = [
+            nn.Conv2d(input_nc, ndf, kernel_size=kw, stride=2, padding=padw),
+            nn.LeakyReLU(0.2, True),
+        ]
         nf_mult = 1
         nf_mult_prev = 1
         for n in range(1, n_layers):  # gradually increase the number of filters
             nf_mult_prev = nf_mult
-            nf_mult = min(2**n, 8)
+            nf_mult = min(2 ** n, 8)
             sequence += [
-                nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult, kernel_size=kw, stride=2, padding=padw, bias=use_bias),
+                nn.Conv2d(
+                    ndf * nf_mult_prev,
+                    ndf * nf_mult,
+                    kernel_size=kw,
+                    stride=2,
+                    padding=padw,
+                    bias=use_bias,
+                ),
                 norm_layer(ndf * nf_mult),
                 nn.LeakyReLU(0.2, True),
             ]
 
         nf_mult_prev = nf_mult
-        nf_mult = min(2**n_layers, 8)
+        nf_mult = min(2 ** n_layers, 8)
         sequence += [
-            nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult, kernel_size=kw, stride=1, padding=padw, bias=use_bias),
+            nn.Conv2d(
+                ndf * nf_mult_prev,
+                ndf * nf_mult,
+                kernel_size=kw,
+                stride=1,
+                padding=padw,
+                bias=use_bias,
+            ),
             norm_layer(ndf * nf_mult),
             nn.LeakyReLU(0.2, True),
         ]
@@ -139,6 +173,7 @@ class NLayerDiscriminator(nn.Module):
 
 class NLayerDiscriminator3D(nn.Module):
     """Defines a 3D PatchGAN discriminator as in Pix2Pix but for 3D inputs."""
+
     # https://github.com/PKU-YuanGroup/Open-Sora-Plan/blob/main/opensora/models/causalvideovae/model/losses/discriminator.py
     def __init__(self, input_nc=1, ndf=64, n_layers=3, use_actnorm=False):
         """
@@ -162,12 +197,15 @@ class NLayerDiscriminator3D(nn.Module):
 
         kw = 3
         padw = 1
-        sequence = [nn.Conv3d(input_nc, ndf, kernel_size=kw, stride=2, padding=padw), nn.LeakyReLU(0.2, True)]
+        sequence = [
+            nn.Conv3d(input_nc, ndf, kernel_size=kw, stride=2, padding=padw),
+            nn.LeakyReLU(0.2, True),
+        ]
         nf_mult = 1
         nf_mult_prev = 1
         for n in range(1, n_layers):  # gradually increase the number of filters
             nf_mult_prev = nf_mult
-            nf_mult = min(2**n, 8)
+            nf_mult = min(2 ** n, 8)
             sequence += [
                 nn.Conv3d(
                     ndf * nf_mult_prev,
@@ -182,10 +220,15 @@ class NLayerDiscriminator3D(nn.Module):
             ]
 
         nf_mult_prev = nf_mult
-        nf_mult = min(2**n_layers, 8)
+        nf_mult = min(2 ** n_layers, 8)
         sequence += [
             nn.Conv3d(
-                ndf * nf_mult_prev, ndf * nf_mult, kernel_size=(kw, kw, kw), stride=1, padding=padw, bias=use_bias
+                ndf * nf_mult_prev,
+                ndf * nf_mult,
+                kernel_size=(kw, kw, kw),
+                stride=1,
+                padding=padw,
+                bias=use_bias,
             ),
             norm_layer(ndf * nf_mult),
             nn.LeakyReLU(0.2, True),

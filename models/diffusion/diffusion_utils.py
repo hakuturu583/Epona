@@ -6,11 +6,13 @@
 import torch as th
 import numpy as np
 
+
 def mean_flat(tensor):
     """
     Take the mean over all non-batch dimensions.
     """
     return tensor.mean(dim=list(range(1, len(tensor.shape))))
+
 
 def normal_kl(mean1, logvar1, mean2, logvar2):
     """

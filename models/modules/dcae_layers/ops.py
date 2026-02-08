@@ -7,7 +7,13 @@ from torch.amp import autocast
 
 from models.modules.dcae_layers.act import build_act
 from models.modules.dcae_layers.norm import build_norm
-from models.modules.dcae_layers.utils import get_same_padding, list_sum, resize, val2list, val2tuple
+from models.modules.dcae_layers.utils import (
+    get_same_padding,
+    list_sum,
+    resize,
+    val2list,
+    val2tuple,
+)
 
 __all__ = [
     "ConvLayer",
@@ -95,7 +101,9 @@ class UpSampleLayer(nn.Module):
 
     @autocast(device_type="cuda", enabled=False)
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        if (self.size is not None and tuple(x.shape[-2:]) == self.size) or self.factor == 1:
+        if (
+            self.size is not None and tuple(x.shape[-2:]) == self.size
+        ) or self.factor == 1:
             return x
         if x.dtype in [torch.float16, torch.bfloat16]:
             x = x.float()
@@ -112,7 +120,7 @@ class ConvPixelUnshuffleDownSampleLayer(nn.Module):
     ):
         super().__init__()
         self.factor = factor
-        out_ratio = factor**2
+        out_ratio = factor ** 2
         assert out_channels % out_ratio == 0
         self.conv = ConvLayer(
             in_channels=in_channels,
@@ -140,8 +148,8 @@ class PixelUnshuffleChannelAveragingDownSampleLayer(nn.Module):
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.factor = factor
-        assert in_channels * factor**2 % out_channels == 0
-        self.group_size = in_channels * factor**2 // out_channels
+        assert in_channels * factor ** 2 % out_channels == 0
+        self.group_size = in_channels * factor ** 2 // out_channels
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = F.pixel_unshuffle(x, self.factor)
@@ -161,7 +169,7 @@ class ConvPixelShuffleUpSampleLayer(nn.Module):
     ):
         super().__init__()
         self.factor = factor
-        out_ratio = factor**2
+        out_ratio = factor ** 2
         self.conv = ConvLayer(
             in_channels=in_channels,
             out_channels=out_channels * out_ratio,
@@ -188,8 +196,8 @@ class ChannelDuplicatingPixelUnshuffleUpSampleLayer(nn.Module):
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.factor = factor
-        assert out_channels * factor**2 % in_channels == 0
-        self.repeats = out_channels * factor**2 // in_channels
+        assert out_channels * factor ** 2 % in_channels == 0
+        self.repeats = out_channels * factor ** 2 // in_channels
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = x.repeat_interleave(self.repeats, dim=1)
@@ -301,7 +309,9 @@ class MBConv(nn.Module):
         use_bias = val2tuple(use_bias, 3)
         norm = val2tuple(norm, 3)
         act_func = val2tuple(act_func, 3)
-        mid_channels = round(in_channels * expand_ratio) if mid_channels is None else mid_channels
+        mid_channels = (
+            round(in_channels * expand_ratio) if mid_channels is None else mid_channels
+        )
 
         self.inverted_conv = ConvLayer(
             in_channels,
@@ -357,7 +367,9 @@ class FusedMBConv(nn.Module):
         norm = val2tuple(norm, 2)
         act_func = val2tuple(act_func, 2)
 
-        mid_channels = round(in_channels * expand_ratio) if mid_channels is None else mid_channels
+        mid_channels = (
+            round(in_channels * expand_ratio) if mid_channels is None else mid_channels
+        )
 
         self.spatial_conv = ConvLayer(
             in_channels,
@@ -402,7 +414,9 @@ class GLUMBConv(nn.Module):
         norm = val2tuple(norm, 3)
         act_func = val2tuple(act_func, 3)
 
-        mid_channels = round(in_channels * expand_ratio) if mid_channels is None else mid_channels
+        mid_channels = (
+            round(in_channels * expand_ratio) if mid_channels is None else mid_channels
+        )
 
         self.glu_act = build_act(act_func[1], inplace=False)
         self.inverted_conv = ConvLayer(
@@ -462,7 +476,9 @@ class ResBlock(nn.Module):
         norm = val2tuple(norm, 2)
         act_func = val2tuple(act_func, 2)
 
-        mid_channels = round(in_channels * expand_ratio) if mid_channels is None else mid_channels
+        mid_channels = (
+            round(in_channels * expand_ratio) if mid_channels is None else mid_channels
+        )
 
         self.conv1 = ConvLayer(
             in_channels,
@@ -536,7 +552,13 @@ class LiteMLA(nn.Module):
                         groups=3 * total_dim,
                         bias=use_bias[0],
                     ),
-                    nn.Conv2d(3 * total_dim, 3 * total_dim, 1, groups=3 * heads, bias=use_bias[0]),
+                    nn.Conv2d(
+                        3 * total_dim,
+                        3 * total_dim,
+                        1,
+                        groups=3 * heads,
+                        bias=use_bias[0],
+                    ),
                 )
                 for scale in scales
             ]
@@ -617,7 +639,9 @@ class LiteMLA(nn.Module):
         original_dtype = att_map.dtype
         if original_dtype in [torch.float16, torch.bfloat16]:
             att_map = att_map.float()
-        att_map = att_map / (torch.sum(att_map, dim=2, keepdim=True) + self.eps)  # b h n n
+        att_map = att_map / (
+            torch.sum(att_map, dim=2, keepdim=True) + self.eps
+        )  # b h n n
         att_map = att_map.to(original_dtype)
         out = torch.matmul(v, att_map)  # b h d n
 
@@ -763,7 +787,9 @@ class DAGBlock(nn.Module):
         self.output_ops = nn.ModuleList(list(outputs.values()))
 
     def forward(self, feature_dict: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
-        feat = [op(feature_dict[key]) for key, op in zip(self.input_keys, self.input_ops)]
+        feat = [
+            op(feature_dict[key]) for key, op in zip(self.input_keys, self.input_ops)
+        ]
         if self.merge == "add":
             feat = list_sum(feat)
         elif self.merge == "cat":
