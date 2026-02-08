@@ -328,7 +328,7 @@ class CarlaClosedLoop:
             base_x, base_y, base_yaw = poses[-1]
 
             epona_images = None
-            if self.args.dump_dir and not self.args.no_save_epona_video:
+            if self.args.dump_dir and self.args.save_epona_video:
                 epona_images = self._generate_epona_predictions(
                     start_latents,
                     rel_pose_t,
@@ -677,7 +677,7 @@ def add_arguments():
     parser.add_argument("--clamp-traj", action="store_true")
     parser.add_argument("--sensor-timeout", type=float, default=2.0)
     parser.add_argument("--run-seconds", type=float, default=20.0)
-    parser.add_argument("--no-save-epona-video", action="store_true")
+    parser.add_argument("--save-epona-video", action="store_true")
 
     # nuScenes calibration
     parser.add_argument("--nuscenes-dataroot", default="")
