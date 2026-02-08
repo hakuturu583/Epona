@@ -250,8 +250,9 @@ class CarlaClosedLoop:
     def _get_pose_xyyaw(self) -> Tuple[float, float, float]:
         transform = self.vehicle.get_transform()
         loc = transform.location
-        yaw = transform.rotation.yaw
-        return (loc.x, loc.y, yaw)
+        # CARLA yaw is right-turn positive (clockwise). Convert to left-turn positive.
+        yaw_left = -transform.rotation.yaw
+        return (loc.x, loc.y, yaw_left)
 
     def warmup_sequence(self) -> Tuple[List[np.ndarray], List[Tuple[float, float, float]]]:
         self.vehicle.set_autopilot(True, self.tm_port)
@@ -276,9 +277,9 @@ class CarlaClosedLoop:
         images, poses = self.warmup_sequence()
 
         step_index = 0
-        start_wall = time.time()
         while not self._should_stop:
-            if self.args.run_seconds > 0 and (time.time() - start_wall) >= self.args.run_seconds:
+            sim_elapsed = step_index * self.args.control_horizon
+            if self.args.run_seconds > 0 and sim_elapsed >= self.args.run_seconds:
                 break
             self.randomize_traffic_lights()
 
@@ -311,25 +312,27 @@ class CarlaClosedLoop:
 
             new_images = []
             new_poses = [poses[-1]]
-            cur_x, cur_y, cur_yaw = poses[-1]
+            base_x, base_y, base_yaw = poses[-1]
 
             for i in range(horizon_steps):
+                # traj is relative to prediction start frame (condition tail), not incremental.
                 dx, dy, dyaw = traj[i, 0], traj[i, 1], traj[i, 2]
-                cur_yaw_rad = np.deg2rad(cur_yaw)
-                wx = cur_x + np.cos(cur_yaw_rad) * dx - np.sin(cur_yaw_rad) * dy
-                wy = cur_y + np.sin(cur_yaw_rad) * dx + np.cos(cur_yaw_rad) * dy
-                wyaw = _normalize_angle_deg(cur_yaw + dyaw)
+                base_yaw_rad = np.deg2rad(base_yaw)
+                wx = base_x + np.cos(base_yaw_rad) * dx - np.sin(base_yaw_rad) * dy
+                wy = base_y + np.sin(base_yaw_rad) * dx + np.cos(base_yaw_rad) * dy
+                wyaw_left = _normalize_angle_deg(base_yaw + dyaw)
+
+                # Convert back to CARLA yaw (right-turn positive).
+                wyaw_carla = -wyaw_left
 
                 transform = carla.Transform(
                     carla.Location(x=float(wx), y=float(wy), z=self.vehicle.get_transform().location.z),
-                    carla.Rotation(pitch=0.0, yaw=float(wyaw), roll=0.0),
+                    carla.Rotation(pitch=0.0, yaw=float(wyaw_carla), roll=0.0),
                 )
                 self.vehicle.set_transform(transform)
                 img = self._tick_and_get_latest_image(sample_ticks)
                 new_images.append(_carla_image_to_rgb(img))
-                new_poses.append((wx, wy, wyaw))
-
-                cur_x, cur_y, cur_yaw = wx, wy, wyaw
+                new_poses.append((wx, wy, wyaw_left))
 
             if self.args.dump_dir:
                 self._dump_step(step_index, new_images, new_poses)
@@ -337,6 +340,9 @@ class CarlaClosedLoop:
             images = new_images
             poses = new_poses
             step_index += 1
+
+        if self.args.dump_dir:
+            self._dump_video()
 
     def _dump_step(self, step_index: int, images, poses):
         import cv2
@@ -349,6 +355,41 @@ class CarlaClosedLoop:
 
     def stop(self):
         self._should_stop = True
+
+    def _dump_video(self):
+        import cv2
+        dump_dir = self.args.dump_dir
+        if not dump_dir or not os.path.isdir(dump_dir):
+            return
+        step_dirs = sorted(
+            [d for d in os.listdir(dump_dir) if d.startswith("step_")]
+        )
+        frame_paths = []
+        for step in step_dirs:
+            step_path = os.path.join(dump_dir, step)
+            frames = sorted(
+                [f for f in os.listdir(step_path) if f.endswith(".png")]
+            )
+            for f in frames:
+                frame_paths.append(os.path.join(step_path, f))
+
+        if not frame_paths:
+            return
+
+        first = cv2.imread(frame_paths[0])
+        if first is None:
+            return
+        h, w = first.shape[:2]
+        fps = max(1.0, round(1.0 / self.args.sample_period, 2))
+        out_path = os.path.join(dump_dir, "carla_output.mp4")
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        writer = cv2.VideoWriter(out_path, fourcc, fps, (w, h))
+        for p in frame_paths:
+            img = cv2.imread(p)
+            if img is None:
+                continue
+            writer.write(img)
+        writer.release()
 
 
 def build_model(args):
