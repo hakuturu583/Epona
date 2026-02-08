@@ -61,7 +61,9 @@ def _carla_image_to_rgb(image: carla.Image) -> np.ndarray:
     return rgb
 
 
-def _resize_and_normalize(images: List[np.ndarray], target_h: int, target_w: int) -> torch.Tensor:
+def _resize_and_normalize(
+    images: List[np.ndarray], target_h: int, target_w: int
+) -> torch.Tensor:
     resized = []
     for img in images:
         img_rs = cv2.resize(img, (target_w, target_h), interpolation=cv2.INTER_AREA)
@@ -213,7 +215,9 @@ class CarlaClosedLoop:
                 roll=self.args.cam_roll,
             ),
         )
-        self.camera = self.world.spawn_actor(cam_bp, cam_transform, attach_to=self.vehicle)
+        self.camera = self.world.spawn_actor(
+            cam_bp, cam_transform, attach_to=self.vehicle
+        )
         self.camera.listen(self.image_queue.put)
 
     def destroy_actors(self):
@@ -247,10 +251,14 @@ class CarlaClosedLoop:
         yaw_left = -transform.rotation.yaw
         return (loc.x, loc.y, yaw_left)
 
-    def warmup_sequence(self) -> Tuple[List[np.ndarray], List[Tuple[float, float, float]]]:
+    def warmup_sequence(
+        self,
+    ) -> Tuple[List[np.ndarray], List[Tuple[float, float, float]]]:
         self.vehicle.set_autopilot(True, self.tm_port)
         self.vehicle.set_simulate_physics(True)
-        self.tm.vehicle_percentage_speed_difference(self.vehicle, self.args.tm_speed_diff)
+        self.tm.vehicle_percentage_speed_difference(
+            self.vehicle, self.args.tm_speed_diff
+        )
 
         poses = [self._get_pose_xyyaw()]
         images = []
@@ -277,17 +285,27 @@ class CarlaClosedLoop:
             self.randomize_traffic_lights()
 
             rel_pose, rel_yaw = _rel_poses_from_abs_xyyaw(poses)
-            imgs_tensor = _resize_and_normalize(
-                images, self.args.image_size[0], self.args.image_size[1]
-            ).unsqueeze(0).cuda()
+            imgs_tensor = (
+                _resize_and_normalize(
+                    images, self.args.image_size[0], self.args.image_size[1]
+                )
+                .unsqueeze(0)
+                .cuda()
+            )
 
             rel_pose_t = torch.from_numpy(rel_pose).unsqueeze(0).float().cuda()
             rel_yaw_t = torch.from_numpy(rel_yaw).unsqueeze(0).float().cuda()
 
-            with torch.no_grad(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+            with torch.no_grad(), torch.autocast(
+                device_type="cuda", dtype=torch.bfloat16
+            ):
                 start_latents = tokenizer.encode_to_z(imgs_tensor)
                 predict_traj, _ = model.step_eval(
-                    start_latents, rel_pose_t, rel_yaw_t, self_pred_traj=True, traj_only=True
+                    start_latents,
+                    rel_pose_t,
+                    rel_yaw_t,
+                    self_pred_traj=True,
+                    traj_only=True,
                 )
 
             traj = predict_traj[0].cpu().numpy()
@@ -300,12 +318,25 @@ class CarlaClosedLoop:
             self.vehicle.set_simulate_physics(False)
 
             sample_ticks = int(round(self.args.sample_period / self.args.delta_seconds))
-            horizon_steps = int(round(self.args.control_horizon / self.args.sample_period))
+            horizon_steps = int(
+                round(self.args.control_horizon / self.args.sample_period)
+            )
             horizon_steps = min(horizon_steps, traj.shape[0])
 
             new_images = []
             new_poses = [poses[-1]]
             base_x, base_y, base_yaw = poses[-1]
+
+            epona_images = None
+            if self.args.dump_dir and not self.args.no_save_epona_video:
+                epona_images = self._generate_epona_predictions(
+                    start_latents,
+                    rel_pose_t,
+                    rel_yaw_t,
+                    horizon_steps,
+                    model,
+                    tokenizer,
+                )
 
             for i in range(horizon_steps):
                 # traj is relative to prediction start frame (condition tail), not incremental.
@@ -319,7 +350,11 @@ class CarlaClosedLoop:
                 wyaw_carla = -wyaw_left
 
                 transform = carla.Transform(
-                    carla.Location(x=float(wx), y=float(wy), z=self.vehicle.get_transform().location.z),
+                    carla.Location(
+                        x=float(wx),
+                        y=float(wy),
+                        z=self.vehicle.get_transform().location.z,
+                    ),
                     carla.Rotation(pitch=0.0, yaw=float(wyaw_carla), roll=0.0),
                 )
                 self.vehicle.set_transform(transform)
@@ -328,7 +363,7 @@ class CarlaClosedLoop:
                 new_poses.append((wx, wy, wyaw_left))
 
             if self.args.dump_dir:
-                self._dump_step(step_index, new_images, new_poses)
+                self._dump_step(step_index, new_images, new_poses, epona_images)
 
             images = new_images
             poses = new_poses
@@ -337,13 +372,17 @@ class CarlaClosedLoop:
         if self.args.dump_dir:
             self._dump_video()
 
-    def _dump_step(self, step_index: int, images, poses):
+    def _dump_step(self, step_index: int, images, poses, epona_images=None):
         import cv2
+
         os.makedirs(self.args.dump_dir, exist_ok=True)
         step_dir = os.path.join(self.args.dump_dir, f"step_{step_index:04d}")
         os.makedirs(step_dir, exist_ok=True)
         for i, img in enumerate(images):
             cv2.imwrite(os.path.join(step_dir, f"{i:03d}.png"), img[:, :, ::-1])
+        if epona_images:
+            for i, img in enumerate(epona_images):
+                cv2.imwrite(os.path.join(step_dir, f"epona_{i:03d}.png"), img)
         np.save(os.path.join(step_dir, "poses.npy"), np.array(poses))
 
     def stop(self):
@@ -351,20 +390,21 @@ class CarlaClosedLoop:
 
     def _dump_video(self):
         import cv2
+
         dump_dir = self.args.dump_dir
         if not dump_dir or not os.path.isdir(dump_dir):
             return
-        step_dirs = sorted(
-            [d for d in os.listdir(dump_dir) if d.startswith("step_")]
-        )
+        step_dirs = sorted([d for d in os.listdir(dump_dir) if d.startswith("step_")])
         frame_paths = []
+        epona_paths = []
         for step in step_dirs:
             step_path = os.path.join(dump_dir, step)
-            frames = sorted(
-                [f for f in os.listdir(step_path) if f.endswith(".png")]
-            )
+            frames = sorted([f for f in os.listdir(step_path) if f.endswith(".png")])
             for f in frames:
-                frame_paths.append(os.path.join(step_path, f))
+                if f.startswith("epona_"):
+                    epona_paths.append(os.path.join(step_path, f))
+                else:
+                    frame_paths.append(os.path.join(step_path, f))
 
         if not frame_paths:
             return
@@ -383,6 +423,58 @@ class CarlaClosedLoop:
                 continue
             writer.write(img)
         writer.release()
+
+        if epona_paths:
+            first = cv2.imread(epona_paths[0])
+            if first is None:
+                return
+            h, w = first.shape[:2]
+            out_path = os.path.join(dump_dir, "epona_output.mp4")
+            writer = cv2.VideoWriter(out_path, fourcc, fps, (w, h))
+            for p in epona_paths:
+                img = cv2.imread(p)
+                if img is None:
+                    continue
+                writer.write(img)
+            writer.release()
+
+    def _generate_epona_predictions(
+        self, start_latents, rel_pose_t, rel_yaw_t, horizon_steps, model, tokenizer
+    ):
+        from einops import rearrange
+
+        condition_frames = self.args.condition_frames
+        latents = start_latents.clone()
+        pose = rel_pose_t.clone()
+        yaw = rel_yaw_t.clone()
+        images = []
+
+        with torch.no_grad(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+            for _ in range(horizon_steps):
+                predict_traj, predict_latents = model.step_eval(
+                    latents, pose, yaw, self_pred_traj=True, traj_only=False
+                )
+                predict_pose, predict_yaw = (
+                    predict_traj[:, 0:1, 0:2],
+                    predict_traj[:, 0:1, 2:3],
+                )
+                pose = torch.cat(
+                    (pose[:, 1:condition_frames, ...], predict_pose, predict_pose),
+                    dim=1,
+                )
+                yaw = torch.cat(
+                    (yaw[:, 1:condition_frames, ...], predict_yaw, predict_yaw),
+                    dim=1,
+                )
+                predict_latents_1 = rearrange(predict_latents, "b h w c -> b 1 (h w) c")
+                latents = torch.cat(
+                    (latents[:, 1:condition_frames, ...], predict_latents_1),
+                    dim=1,
+                )
+                img_pred = tokenizer.z_to_image(predict_latents).cpu()
+                img_np = (img_pred[0].permute(1, 2, 0).numpy() * 255).astype("uint8")
+                images.append(img_np[:, :, ::-1])
+        return images
 
 
 def build_model(args):
@@ -431,7 +523,7 @@ def _rotmat_to_carla_rpy(R):
 
     up_world = np.array([0.0, 0.0, 1.0], dtype=np.float32)
     right_ref = np.cross(up_world, f)
-    right_ref /= (np.linalg.norm(right_ref) + 1e-8)
+    right_ref /= np.linalg.norm(right_ref) + 1e-8
     roll = math.atan2(np.dot(np.cross(right_ref, r), f), np.dot(right_ref, r))
 
     return math.degrees(roll), math.degrees(pitch), math.degrees(yaw)
@@ -449,7 +541,9 @@ def apply_nuscenes_calibration(args):
             "nuscenes-devkit is required when --nuscenes-dataroot is set"
         ) from exc
 
-    nusc = NuScenes(version=args.nuscenes_version, dataroot=args.nuscenes_dataroot, verbose=False)
+    nusc = NuScenes(
+        version=args.nuscenes_version, dataroot=args.nuscenes_dataroot, verbose=False
+    )
     sample = nusc.sample[0]
     cam_token = sample["data"][args.nuscenes_camera]
     cam_data = nusc.get("sample_data", cam_token)
@@ -553,13 +647,16 @@ def add_arguments():
     parser.add_argument("--clamp-traj", action="store_true")
     parser.add_argument("--sensor-timeout", type=float, default=2.0)
     parser.add_argument("--run-seconds", type=float, default=20.0)
+    parser.add_argument("--no-save-epona-video", action="store_true")
 
     # nuScenes calibration
     parser.add_argument("--nuscenes-dataroot", default="")
     parser.add_argument("--nuscenes-version", default="v1.0-mini")
     parser.add_argument("--nuscenes-camera", default="CAM_FRONT")
     parser.add_argument("--no-nuscenes-axis-flip", action="store_true")
-    parser.add_argument("--nuscenes-camera-frame", choices=["opencv", "carla"], default="opencv")
+    parser.add_argument(
+        "--nuscenes-camera-frame", choices=["opencv", "carla"], default="opencv"
+    )
 
     return parser.parse_args()
 
