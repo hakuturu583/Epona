@@ -29,6 +29,8 @@ dependencies = [
   "nuplan-devkit @ git+https://github.com/motional/nuplan-devkit.git",
   "pyquaternion==0.9.9",
   "shapely==1.8.5",
+  "docker>=7.1.0",
+  "carla>=0.9.16",
 ]
 
 [[tool.uv.index]]

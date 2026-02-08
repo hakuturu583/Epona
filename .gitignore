@@ -39,3 +39,4 @@ semantic_images/*
 __pycache__
 
 pretrained
+test_videos
