@@ -9,7 +9,7 @@ from tqdm import tqdm
 from einops import rearrange
 from torch.utils.data import DataLoader, Subset
 root_path = os.path.abspath(__file__)
-root_path = '/'.join(root_path.split('/')[:-2])
+root_path = '/'.join(root_path.split('/')[:-3])
 print(root_path)
 sys.path.append(root_path)
 

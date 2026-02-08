@@ -20,6 +20,8 @@ datasets/__pycache__/*
 
 __pycache__/*
 
+*.pyc
+
 *.json
 *.txt
 
@@ -33,3 +35,5 @@ save_video/*
 semantic_images
 
 semantic_images/*
+
+__pycache__

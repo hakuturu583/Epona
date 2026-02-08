@@ -8,6 +8,7 @@ import os.path as osp
 import platform
 import shutil
 import sys
+import sysconfig
 import tempfile
 import types
 import uuid
@@ -26,9 +27,15 @@ BASE_KEY = '_base_'
 DELETE_KEY = '_delete_'
 DEPRECATION_KEY = '_deprecation_'
 RESERVED_KEYS = ['filename', 'text', 'pretty_text', 'env_variables']
+PYTHON_ROOT_DIR = osp.abspath(sysconfig.get_path("stdlib") or sys.base_prefix)
 
 def digit_version(version_str):
     return tuple(map(int, version_str.split('.')))
+
+def check_file_exist(filename: str) -> None:
+    """Raise FileNotFoundError if the config file does not exist."""
+    if not osp.isfile(filename):
+        raise FileNotFoundError(f'File does not exist: {filename}')
 
 class LazyAttr:
     """The attribute of the LazyObject.
