@@ -1,3 +1,5 @@
+import os
+import urllib.request
 import torch
 import torch.nn as nn
 from einops import rearrange
@@ -83,6 +85,7 @@ class VAETokenizer(nn.Module):
     def __init__(self, args, local_rank):
         super().__init__()
         self.args = args
+        self.args.vae_ckpt = self._ensure_dcae_ckpt(self.args.vae_ckpt)
         self.vae = DCAE(
             dc_ae_f32c32(
                 "dc-ae-f32c32-mix-1.0",
@@ -97,6 +100,21 @@ class VAETokenizer(nn.Module):
         self.vae.cuda(local_rank)
         self.vae.eval()
         print(f"load from {args.vae_ckpt}")
+
+    @staticmethod
+    def _ensure_dcae_ckpt(path: str) -> str:
+        if path and os.path.exists(path):
+            return path
+        if not path:
+            path = os.path.join("pretrained", "dcae_td_20000.pkl")
+        if os.path.exists(path):
+            return path
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        url = "https://huggingface.co/Kevin-thu/Epona/resolve/main/dcae_td_20000.pkl"
+        print(f"Downloading DCAE checkpoint from {url} ...")
+        urllib.request.urlretrieve(url, path)
+        print(f"Saved checkpoint to {path}")
+        return path
 
     @torch.no_grad()
     def encode_to_z(self, x):

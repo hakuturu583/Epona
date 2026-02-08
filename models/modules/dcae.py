@@ -854,8 +854,14 @@ class DCAE(nn.Module):
                 state_dict = torch.load(
                     self.cfg.pretrained_path, map_location="cpu", weights_only=True
                 )["model"]
-            self.load_state_dict(state_dict)
-            print(f"load from {self.cfg.pretrained_path}")
+            missing, unexpected = self.load_state_dict(state_dict, strict=False)
+            if missing or unexpected:
+                print(
+                    f"load from {self.cfg.pretrained_path} with non-strict state_dict "
+                    f"(missing={len(missing)}, unexpected={len(unexpected)})"
+                )
+            else:
+                print(f"load from {self.cfg.pretrained_path}")
             del state_dict
         else:
             raise NotImplementedError

@@ -28,10 +28,14 @@ def _ensure_nuscenes_meta(repo_root: str):
     meta_dir = os.path.join(repo_root, "meta_data_nusc")
     os.makedirs(meta_dir, exist_ok=True)
     base_url = "https://huggingface.co/Kevin-thu/Epona/resolve/main/meta_data_nusc"
-    for name in ("nuscenes_val.json", "nuscenes_train.json"):
-        path = os.path.join(meta_dir, name)
+    files = [
+        ("nuScenes_val.json", "nuscenes_val.json"),
+        ("nuscenes_train.json", "nuscenes_train.json"),
+    ]
+    for remote_name, local_name in files:
+        path = os.path.join(meta_dir, local_name)
         if not os.path.exists(path):
-            url = f"{base_url}/{name}"
+            url = f"{base_url}/{remote_name}"
             print(f"Downloading {url} ...")
             urllib.request.urlretrieve(url, path)
             print(f"Saved {path}")
