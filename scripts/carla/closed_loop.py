@@ -385,10 +385,21 @@ def _quat_to_rotmat(qw, qx, qy, qz):
 
 
 def _rotmat_to_carla_rpy(R):
-    # CARLA uses degrees: roll (x), pitch (y), yaw (z)
-    yaw = math.atan2(R[1, 0], R[0, 0])
-    pitch = math.atan2(-R[2, 0], math.sqrt(R[2, 1] ** 2 + R[2, 2] ** 2))
-    roll = math.atan2(R[2, 1], R[2, 2])
+    # CARLA/UE: left-handed, X forward, Y right, Z up.
+    # Extract yaw/pitch/roll from forward/right vectors.
+    f = R[:, 0]
+    r = R[:, 1]
+    f = f / (np.linalg.norm(f) + 1e-8)
+    r = r / (np.linalg.norm(r) + 1e-8)
+
+    yaw = math.atan2(f[1], f[0])
+    pitch = math.atan2(f[2], math.sqrt(f[0] ** 2 + f[1] ** 2))
+
+    up_world = np.array([0.0, 0.0, 1.0], dtype=np.float32)
+    right_ref = np.cross(up_world, f)
+    right_ref /= (np.linalg.norm(right_ref) + 1e-8)
+    roll = math.atan2(np.dot(np.cross(right_ref, r), f), np.dot(right_ref, r))
+
     return math.degrees(roll), math.degrees(pitch), math.degrees(yaw)
 
 
@@ -420,8 +431,8 @@ def apply_nuscenes_calibration(args):
     height = int(cam_data["height"])
     fov = 2.0 * math.degrees(math.atan(width / (2.0 * fx)))
 
-    # nuScenes ego frame is commonly treated as x-forward, y-left, z-up.
-    # CARLA uses x-forward, y-right, z-up. We flip y by default.
+    # nuScenes ego frame: x forward, y left, z up (right-handed).
+    # CARLA/UE: x forward, y right, z up (left-handed).
     if args.no_nuscenes_axis_flip:
         S = np.eye(3, dtype=np.float32)
     else:
@@ -432,7 +443,22 @@ def apply_nuscenes_calibration(args):
 
     qw, qx, qy, qz = calib["rotation"]
     R_nu = _quat_to_rotmat(qw, qx, qy, qz)
-    R_c = S @ R_nu @ S
+
+    # nuScenes camera frame is typically OpenCV: x right, y down, z forward.
+    # CARLA camera frame: x forward, y right, z up.
+    if args.nuscenes_camera_frame == "opencv":
+        M = np.array(
+            [
+                [0.0, 0.0, 1.0],
+                [1.0, 0.0, 0.0],
+                [0.0, -1.0, 0.0],
+            ],
+            dtype=np.float32,
+        )
+    else:
+        M = np.eye(3, dtype=np.float32)
+
+    R_c = S @ R_nu @ M.T
     roll, pitch, yaw = _rotmat_to_carla_rpy(R_c)
 
     args.cam_width = width
@@ -499,6 +525,7 @@ def add_arguments():
     parser.add_argument("--nuscenes-version", default="v1.0-mini")
     parser.add_argument("--nuscenes-camera", default="CAM_FRONT")
     parser.add_argument("--no-nuscenes-axis-flip", action="store_true")
+    parser.add_argument("--nuscenes-camera-frame", choices=["opencv", "carla"], default="opencv")
 
     return parser.parse_args()
 

@@ -56,6 +56,7 @@ python scripts/carla/closed_loop.py \
 This overrides `--cam-*` with the calibrated sensor values from `calibrated_sensor` and the camera resolution from `sample_data` for `CAM_FRONT`.
 If you prefer to keep axes as-is (no Y flip), add `--no-nuscenes-axis-flip`.
 Requires `nuscenes-devkit` installed in the Python environment.
+If the camera orientation still looks off, set `--nuscenes-camera-frame carla` to disable the OpenCV camera-frame assumption.
 
 ## Default camera (approx)
 - Resolution: `1600x900`
