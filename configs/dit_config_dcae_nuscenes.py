@@ -2,10 +2,15 @@
 seed=1234
 
 #! Dataset paths
+import os
+
+_NUSCENES_ROOT = os.getenv("NUSCENES_DATAROOT", "")
+_NUSCENES_META = os.path.join(_NUSCENES_ROOT, "meta_data_nusc") if _NUSCENES_ROOT else ""
+
 datasets_paths=dict(
-    nuscense_root='',
-    nuscense_train_json_path='',
-    nuscense_val_json_path='',
+    nuscense_root=_NUSCENES_ROOT,
+    nuscense_train_json_path=os.path.join(_NUSCENES_META, "nuscenes_train.json") if _NUSCENES_META else '',
+    nuscense_val_json_path=os.path.join(_NUSCENES_META, "nuscenes_val.json") if _NUSCENES_META else '',
     
     nuplan_root= '',
     nuplan_json_root= '',

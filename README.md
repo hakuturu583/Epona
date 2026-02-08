@@ -63,11 +63,13 @@
 ## 🚀 Getting Started
 ### Installation
 ```bash
-conda create -n epona python=3.10
-conda activate epona
-pip install -r requirements.txt
+uv venv -p 3.10
+source .venv/bin/activate
+uv sync
 ```
-To run the code with CUDA properly, you can comment out `torch` and `torchvision` in `requirement.txt`, and install the appropriate version of `torch>=2.1.0+cu121` and `torchvision>=0.16.0+cu121` according to the instructions on [PyTorch](https://pytorch.org/get-started/locally/).
+`uv sync` installs PyTorch CUDA 12.1 wheels via the PyTorch index configured in `pyproject.toml`.
+For other CUDA or CPU builds, follow the instructions on [PyTorch](https://pytorch.org/get-started/locally/) and update the `torch`/`torchvision` entries and index in `pyproject.toml` accordingly.
+
 
 
 ### Data Preparation
