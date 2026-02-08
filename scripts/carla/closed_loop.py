@@ -224,15 +224,8 @@ class CarlaClosedLoop:
             self.vehicle.destroy()
 
     def randomize_traffic_lights(self):
-        lights = self.world.get_actors().filter("traffic.traffic_light*")
-        for tl in lights:
-            state = random.choice(
-                [carla.TrafficLightState.Red, carla.TrafficLightState.Yellow, carla.TrafficLightState.Green]
-            )
-            tl.set_state(state)
-            tl.set_green_time(random.uniform(3.0, 10.0))
-            tl.set_red_time(random.uniform(3.0, 10.0))
-            tl.set_yellow_time(random.uniform(1.0, 3.0))
+        # Leave traffic lights to CARLA's default behavior.
+        return
 
     def _tick_and_get_latest_image(self, ticks: int) -> carla.Image:
         last_img = None
