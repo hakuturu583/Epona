@@ -397,14 +397,23 @@ class CarlaClosedLoop:
         step_dirs = sorted([d for d in os.listdir(dump_dir) if d.startswith("step_")])
         frame_paths = []
         epona_paths = []
+        paired_paths = []
         for step in step_dirs:
             step_path = os.path.join(dump_dir, step)
             frames = sorted([f for f in os.listdir(step_path) if f.endswith(".png")])
-            for f in frames:
-                if f.startswith("epona_"):
-                    epona_paths.append(os.path.join(step_path, f))
-                else:
-                    frame_paths.append(os.path.join(step_path, f))
+            carla_frames = [f for f in frames if not f.startswith("epona_")]
+            epona_frames = [f for f in frames if f.startswith("epona_")]
+            for f in carla_frames:
+                frame_paths.append(os.path.join(step_path, f))
+            for f in epona_frames:
+                epona_paths.append(os.path.join(step_path, f))
+            for i in range(min(len(carla_frames), len(epona_frames))):
+                paired_paths.append(
+                    (
+                        os.path.join(step_path, carla_frames[i]),
+                        os.path.join(step_path, epona_frames[i]),
+                    )
+                )
 
         if not frame_paths:
             return
@@ -436,6 +445,27 @@ class CarlaClosedLoop:
                 if img is None:
                     continue
                 writer.write(img)
+            writer.release()
+
+        if paired_paths:
+            first_left = cv2.imread(paired_paths[0][0])
+            first_right = cv2.imread(paired_paths[0][1])
+            if first_left is None or first_right is None:
+                return
+            h = min(first_left.shape[0], first_right.shape[0])
+            left_w = int(first_left.shape[1] * (h / first_left.shape[0]))
+            right_w = int(first_right.shape[1] * (h / first_right.shape[0]))
+            out_path = os.path.join(dump_dir, "combined_output.mp4")
+            writer = cv2.VideoWriter(out_path, fourcc, fps, (left_w + right_w, h))
+            for left_p, right_p in paired_paths:
+                left = cv2.imread(left_p)
+                right = cv2.imread(right_p)
+                if left is None or right is None:
+                    continue
+                left = cv2.resize(left, (left_w, h), interpolation=cv2.INTER_AREA)
+                right = cv2.resize(right, (right_w, h), interpolation=cv2.INTER_AREA)
+                combined = cv2.hconcat([left, right])
+                writer.write(combined)
             writer.release()
 
     def _generate_epona_predictions(
