@@ -1,5 +1,6 @@
 import os
 import time
+import urllib.request
 import torch
 import torch.nn as nn
 import torch.nn.functional
@@ -12,6 +13,31 @@ from models.traj_dit import TrajDiT, TrajParams
 from models.modules.tokenizer import poses_to_indices, yaws_to_indices
 from utils.fft_utils import freq_mix, ideal_low_pass_filter
 from models.modules.sampling import prepare_ids, get_schedule
+
+def _ensure_checkpoint(path: str) -> str:
+    if not path:
+        return path
+    if os.path.exists(path):
+        return path
+
+    repo_id = "Kevin-thu/Epona"
+    filename = os.path.basename(path)
+    filename_map = {
+        "epona_nuscenes.pkl": "epona_nuplan+nusc.pkl",
+    }
+    hf_filename = filename_map.get(filename, filename)
+
+    dst_dir = os.path.dirname(path) or "pretrained"
+    os.makedirs(dst_dir, exist_ok=True)
+    dst_path = os.path.join(dst_dir, hf_filename)
+
+    if not os.path.exists(dst_path):
+        url = f"https://huggingface.co/{repo_id}/resolve/main/{hf_filename}"
+        print(f"Downloading checkpoint from {url} ...")
+        urllib.request.urlretrieve(url, dst_path)
+        print(f"Saved checkpoint to {dst_path}")
+
+    return dst_path
 
 class TrainTransformersDiT(nn.Module):
     def __init__(
@@ -106,6 +132,7 @@ class TrainTransformersDiT(nn.Module):
         self.lambda_yaw_pose = self.args.lambda_yaw_pose
 
         if load_path is not None:
+            load_path = _ensure_checkpoint(load_path)
             # load_model_path = os.path.join(load_path, 'tvar'+'_%d.pkl'%(resume_step))
             state_dict = torch.load(load_path, map_location='cpu')["model_state_dict"]
             model_state_dict = self.model.state_dict()

@@ -6,6 +6,7 @@ import difflib
 import os
 import os.path as osp
 import platform
+import re
 import shutil
 import sys
 import sysconfig
@@ -28,6 +29,27 @@ DELETE_KEY = '_delete_'
 DEPRECATION_KEY = '_deprecation_'
 RESERVED_KEYS = ['filename', 'text', 'pretty_text', 'env_variables']
 PYTHON_ROOT_DIR = osp.abspath(sysconfig.get_path("stdlib") or sys.base_prefix)
+
+class RemoveAssignFromAST(ast.NodeTransformer):
+    """Remove assignments to a specific name from AST."""
+
+    def __init__(self, name: str):
+        self.name = name
+
+    def _is_target_name(self, target):
+        return isinstance(target, ast.Name) and target.id == self.name
+
+    def visit_Assign(self, node):
+        targets = [t for t in node.targets if not self._is_target_name(t)]
+        if not targets:
+            return None
+        node.targets = targets
+        return node
+
+    def visit_AnnAssign(self, node):
+        if self._is_target_name(node.target):
+            return None
+        return node
 
 def digit_version(version_str):
     return tuple(map(int, version_str.split('.')))
