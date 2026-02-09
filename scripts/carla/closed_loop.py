@@ -263,10 +263,17 @@ class CarlaClosedLoop:
         poses = [self._get_pose_xyyaw()]
         images = []
         sample_ticks = int(round(self.args.sample_period / self.args.delta_seconds))
-        for _ in range(self.args.condition_frames):
+        warmup_steps = max(
+            self.args.condition_frames,
+            int(round(self.args.warmup_seconds / self.args.sample_period)),
+        )
+        for _ in range(warmup_steps):
             img = self._tick_and_get_latest_image(sample_ticks)
             images.append(_carla_image_to_rgb(img))
             poses.append(self._get_pose_xyyaw())
+        # Keep only the latest condition window for inference.
+        images = images[-self.args.condition_frames :]
+        poses = poses[-(self.args.condition_frames + 1) :]
         return images, poses
 
     @property
@@ -285,6 +292,10 @@ class CarlaClosedLoop:
             self.randomize_traffic_lights()
 
             rel_pose, rel_yaw = _rel_poses_from_abs_xyyaw(poses)
+            if not self.args.no_clip_input_rel:
+                rel_pose[:, 0] = np.clip(rel_pose[:, 0], 0.0, 8.0)
+                rel_pose[:, 1] = np.clip(rel_pose[:, 1], -0.5, 0.5)
+                rel_yaw[:, 0] = np.clip(rel_yaw[:, 0], -8.0, 8.0)
             imgs_tensor = (
                 _resize_and_normalize(
                     images, self.args.image_size[0], self.args.image_size[1]
@@ -652,7 +663,8 @@ def add_arguments():
 
     # Vehicle / traffic
     parser.add_argument("--vehicle", default="vehicle.tesla.model3")
-    parser.add_argument("--tm-speed-diff", type=float, default=50.0)
+    parser.add_argument("--tm-speed-diff", type=float, default=0.0)
+    parser.add_argument("--warmup-seconds", type=float, default=3.0)
 
     # Camera (nuScenes-like)
     parser.add_argument("--cam-width", type=int, default=1600)
@@ -678,6 +690,7 @@ def add_arguments():
     parser.add_argument("--sensor-timeout", type=float, default=2.0)
     parser.add_argument("--run-seconds", type=float, default=20.0)
     parser.add_argument("--save-epona-video", action="store_true")
+    parser.add_argument("--no-clip-input-rel", action="store_true")
 
     # nuScenes calibration
     parser.add_argument("--nuscenes-dataroot", default="")
